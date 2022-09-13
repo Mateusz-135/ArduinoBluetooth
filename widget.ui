@@ -97,6 +97,9 @@
        <property name="placeholderText">
         <string>Enter command</string>
        </property>
+       <property name="clearButtonEnabled">
+        <bool>false</bool>
+       </property>
       </widget>
      </item>
     </layout>

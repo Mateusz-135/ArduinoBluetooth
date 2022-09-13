@@ -9,6 +9,9 @@ Widget::Widget(QWidget *parent)
 {
     ui->setupUi(this);
 
+    this->setFocusPolicy(Qt::FocusPolicy::ClickFocus); // this will setup focus policy,
+    //so when we click on the widget window the app will react to keyEvents (clicking on other widgets, like lineEdit will not work, because it's a different widget; inside main widget)
+
     connect(ui->search_button, &QPushButton::clicked, this, [this](){ // -------------------------------------------------------------------- start searching
         addLog("Searching devices...");
         ui->devices_combo_box->clear();
@@ -53,17 +56,17 @@ Widget::Widget(QWidget *parent)
             QString text{ui->command_line_edit->text()}; // eventually sending a message from line edit means parsing a text into the command code known for the microcontroller
             ui->command_line_edit->clear();
             if(text == "red on")
-                send_command(command::redOn);
+                send_command(Command::redOn);
             else if(text == "red off")
-                send_command(command::redOff);
+                send_command(Command::redOff);
             else if(text == "green on")
-                send_command(command::greenOn);
+                send_command(Command::greenOn);
             else if(text == "green off")
-                send_command(command::greenOff);
+                send_command(Command::greenOff);
             else if(text == "blue on")
-                send_command(command::blueOn);
+                send_command(Command::blueOn);
             else if(text == "blue off")
-                send_command(command::blueOff);
+                send_command(Command::blueOff);
             else{
                 addLog("Unknown command");
             }
@@ -71,42 +74,24 @@ Widget::Widget(QWidget *parent)
     });
 
     connect(ui->red_led_button, &QPushButton::clicked, this, [this](){
-        if(red_diode_state){
-            red_diode_state = false;
-            send_command(command::redOff);
-            ui->red_led_button->setText("Red off");
-        }
-        else{
-            red_diode_state = true;
-            send_command(command::redOn);
-            ui->red_led_button->setText("Red on");
-        }
+        if(red_diode_state)
+            send_command(Command::redOff);
+        else
+            send_command(Command::redOn);
     });
 
     connect(ui->green_led_button, &QPushButton::clicked, this, [this](){
-        if(green_diode_state){
-            green_diode_state = false;
-            send_command(command::greenOff);
-            ui->green_led_button->setText("Green off");
-        }
-        else{
-            green_diode_state = true;
-            send_command(command::greenOn);
-            ui->green_led_button->setText("Green on");
-        }
+        if(green_diode_state)
+            send_command(Command::greenOff);
+        else
+            send_command(Command::greenOn);
     });
 
     connect(ui->blue_led_button, &QPushButton::clicked, this, [this](){
-        if(blue_diode_state){
-            blue_diode_state = false;
-            send_command(command::blueOff);
-            ui->blue_led_button->setText("Blue off");
-        }
-        else{
-            blue_diode_state = true;
-            send_command(command::blueOn);
-            ui->blue_led_button->setText("Blue on");
-        }
+        if(blue_diode_state)
+            send_command(Command::blueOff);
+        else
+            send_command(Command::blueOn);
     });
 }
 
@@ -129,9 +114,10 @@ QBluetoothDeviceInfo Widget::get_chosen_device(const QString &chosen_device_name
     return QBluetoothDeviceInfo();
 }
 
-void Widget::send_command(char command_code){
+void Widget::send_command(Command command_code){
     if(socket != nullptr && this->socket->isOpen() && this->socket->isWritable()) {
-        this->socket->write(&command_code, 1);
+        char char_code{static_cast<char>(command_code)};
+        this->socket->write(&char_code, 1);
     }
     else{
         addLog("Cannot send the message");
@@ -164,10 +150,43 @@ void Widget::reset_the_socket(){ // --------------------------------------------
     connect(socket, &QBluetoothSocket::readyRead, this, [this](){
         char response_code{};
         while(socket->getChar(&response_code)){ // reads one byte of data from the device, device should send either true or false
-            if(response_code == 1)
-                addLog("Successful command");
-            else
-                addLog("Command failure");
+            switch(Command(response_code)){ // we need to cast in order to be able to do switch statemenst with scoped enumeration
+            case Command::redOn:
+                red_diode_state = true;
+                ui->red_led_button->setText("Turn red off");
+                addLog("Red led is on");
+                break;
+            case Command::redOff:
+                red_diode_state = false;
+                ui->red_led_button->setText("Turn red on");
+                addLog("Red led is off");
+                break;
+            case Command::greenOn:
+                green_diode_state = true;
+                ui->green_led_button->setText("Turn green off");
+                addLog("Green led is on");
+                break;
+            case Command::greenOff:
+                green_diode_state = false;
+                ui->green_led_button->setText("Turn green on");
+                addLog("Green led is off");
+                break;
+            case Command::blueOn:
+                blue_diode_state = true;
+                ui->blue_led_button->setText("Turn blue off");
+                addLog("Blue led is on");
+                break;
+            case Command::blueOff:
+                blue_diode_state = false;
+                ui->blue_led_button->setText("Turn blue on");
+                addLog("Blue led is off");
+                break;
+            case Command::fail:
+                addLog("Command failed");
+                break;
+            default:
+                addLog("Unknowns response");
+            }
         }
     });
 }
@@ -198,4 +217,50 @@ void Widget::closeEvent(QCloseEvent *event){ // makes sure that the device will 
     if(socket != nullptr){
         socket->abort();
     }
+}
+
+void Widget::keyPressEvent(QKeyEvent *event){ // when key pressed turn on the led
+    if(event->isAutoRepeat()){
+        event->ignore(); // // if the event is autoRepeated ignore event and
+        return; // return, this will provide occuring of releaseEvents, when the key is still pressed
+    }
+
+    switch(event->key()){
+    case Qt::Key_R:
+        if(!red_diode_state) // do not send the message if it's not going to change the current state
+            send_command(Command::redOn);
+        break;
+    case Qt::Key_G:
+        if(!green_diode_state)
+            send_command(Command::greenOn);
+        break;
+    case Qt::Key_B:
+        if(!blue_diode_state)
+            send_command(Command::blueOn);
+        break;
+    }
+    QWidget::keyPressEvent(event);
+}
+
+void Widget::keyReleaseEvent(QKeyEvent *event){ // when key released turn off the led
+    if(event->isAutoRepeat()){
+        event->ignore();
+        return;
+    }
+
+    switch(event->key()){
+    case Qt::Key_R:
+        if(red_diode_state)
+            send_command(Command::redOff);
+        break;
+    case Qt::Key_G:
+        if(green_diode_state)
+            send_command(Command::greenOff);
+        break;
+    case Qt::Key_B:
+        if(blue_diode_state)
+            send_command(Command::blueOff);
+        break;
+    }
+    QWidget::keyReleaseEvent(event);
 }

@@ -6,7 +6,7 @@ const uint8_t redLedPin = 13;
 const uint8_t greenLedPin = 12;
 const uint8_t blueLedPin = 11;
 
-enum command{redOn, redOff, greenOn, greenOff, blueOn, blueOff};
+enum class Command : char{fail, redOn, redOff, greenOn, greenOff, blueOn, blueOff};
 
 void setup() {
   Serial.begin(9600);
@@ -24,32 +24,33 @@ void loop() {
  
 void serialEvent() {
   while (Serial.available()) {
-    char command_code{Serial.read()};
+    char char_code{char(Serial.read())};
+    Command command_code{Command(char_code)};
 
     switch(command_code){
-      case redOn:
+      case Command::redOn:
         digitalWrite(redLedPin, HIGH); // red on
         break;
-      case redOff:
+      case Command::redOff:
         digitalWrite(redLedPin, LOW); // red off
         break;
-      case greenOn:
+      case Command::greenOn:
         digitalWrite(greenLedPin, HIGH); // green on
         break;
-      case greenOff:
+      case Command::greenOff:
         digitalWrite(greenLedPin, LOW); // green off
         break;
-      case blueOn:
+      case Command::blueOn:
         digitalWrite(blueLedPin, HIGH); // blue on
         break;
-      case blueOff:
+      case Command::blueOff:
         digitalWrite(blueLedPin, LOW); // blue off
         break;
       default:
-        Serial.write(false);
+        Serial.write(char(Command::fail));
         return; // if error, return from serialEvent()
     }
     
-    Serial.write(true); // if there was no error respond with OK
+    Serial.write(char_code); // if the command was read successfully write the name of the command back to the master
   }
 }
